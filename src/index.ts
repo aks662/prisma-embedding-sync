@@ -5,6 +5,7 @@ export {
   PrismaEmbeddingSyncError,
   UnsupportedOperationError,
 } from './errors.js';
+export { MockProvider } from './providers/mock.js';
 export type {
   EmbedConfig,
   EmbeddingProvider,

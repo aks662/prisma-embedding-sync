@@ -1,4 +1,7 @@
 /** @file Defines the public configuration and provider contracts for embedding synchronization. */
+import type { EmbeddingProvider } from './providers/interface.js';
+
+export type { EmbeddingProvider } from './providers/interface.js';
 
 /** Options for constructing a deterministic mock embedding provider. */
 export interface MockProviderOptions {
@@ -16,16 +19,6 @@ export interface OllamaProviderOptions {
   timeoutMs?: number;
   /** Expected vector size. Defaults to 768 for nomic-embed-text. */
   dimensions?: number;
-}
-
-/** A provider that converts normalized source text into numeric vectors. */
-export interface EmbeddingProvider {
-  /** Embeds each input string and returns one vector per input. */
-  embed(texts: string[]): Promise<number[][]>;
-  /** Number of components returned in each vector. */
-  readonly dimensions: number;
-  /** Human-readable provider or model identifier. */
-  readonly modelName: string;
 }
 
 /** Embedding behavior for one Prisma schema model. */
