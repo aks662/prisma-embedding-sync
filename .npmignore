@@ -1,0 +1,9 @@
+TASK.md
+tests/
+demo/
+src/
+.github/
+*.config.*
+tsconfig.json
+docker-compose.yml
+.env*
