@@ -1,7 +1,7 @@
 /** @file Tests all required configuration errors and construction of the pass-through extension. */
 import { describe, expect, it, vi } from 'vitest';
 import { ConfigValidationError, withEmbeddings } from '../src/index.js';
-import type { PrismaClientExtends } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { validateConfig } from '../src/config.js';
 import type { EmbedConfig } from '../src/types.js';
 
@@ -48,6 +48,16 @@ describe('extension configuration validation', () => {
     );
     expect(() => validateConfig(configWith({ hashField: '' }))).toThrow(
       new ConfigValidationError('Model "Product": hashField must be a non-empty field name'),
+    );
+    expect(() => validateConfig(configWith({ sourceFields: ['name', 'embeddingInput'] }))).toThrow(
+      new ConfigValidationError(
+        'Model "Product": sourceFields and hashField must not include staging field "embeddingInput"',
+      ),
+    );
+    expect(() => validateConfig(configWith({ hashField: 'embeddingInput' }))).toThrow(
+      new ConfigValidationError(
+        'Model "Product": sourceFields and hashField must not include staging field "embeddingInput"',
+      ),
     );
   });
 
@@ -102,7 +112,7 @@ describe('extension configuration validation', () => {
         return { extended: true };
       },
       $transaction: async () => null,
-    } as unknown as PrismaClientExtends;
+    } as unknown as PrismaClient;
     const extended = withEmbeddings(fakeClient, validConfig());
 
     expect(extended).toEqual({ extended: true });

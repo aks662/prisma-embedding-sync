@@ -1,30 +1,35 @@
 /** @file Creates a Prisma query extension after validating its model configuration. */
-import type { PrismaClientExtends } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { validateConfig } from '../config.js';
 import type { EmbedConfig } from '../types.js';
+import { executeCreate } from './create.js';
+import { executeCreateMany } from './createMany.js';
+import { executeUpdate } from './update.js';
+import { executeUpsert } from './upsert.js';
+import { rejectUpdateMany } from './updateMany.js';
 
 /** Validates configuration and returns the actual Prisma client extension type. */
-export function withEmbeddings<T extends PrismaClientExtends>(client: T, config: EmbedConfig) {
+export function withEmbeddings<T extends PrismaClient>(client: T, config: EmbedConfig) {
   validateConfig(config);
 
   return client.$extends({
     name: 'prisma-embedding-sync',
     query: {
       $allModels: {
-        async create({ args, query }) {
-          return query(args);
+        create({ model, args, query }) {
+          return executeCreate(model, args, query, config.models);
         },
-        async update({ args, query }) {
-          return query(args);
+        async update({ model, args, query }) {
+          return executeUpdate(model, args, query, config.models);
         },
-        async createMany({ args, query }) {
-          return query(args);
+        async createMany({ model, args, query }) {
+          return executeCreateMany(model, args, query, config.models);
         },
-        async upsert({ args, query }) {
-          return query(args);
+        async upsert({ model, args, query }) {
+          return executeUpsert(model, args, query, config.models);
         },
-        async updateMany({ args, query }) {
-          return query(args);
+        async updateMany({ model }) {
+          return rejectUpdateMany(model);
         },
       },
     },

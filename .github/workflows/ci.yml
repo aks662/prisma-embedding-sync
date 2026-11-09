@@ -7,6 +7,23 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/prisma_embedding_sync_test?schema=public
+      DB_INTEGRATION: '1'
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: prisma_embedding_sync_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d prisma_embedding_sync_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     strategy:
       matrix:
         node-version: [22, 24]
@@ -17,8 +34,57 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
+      - run: npx prisma migrate deploy --schema tests/prisma/schema.prisma
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - run: npm run test:coverage
       - run: npm run format:check
+      - run: npm pack --dry-run
+      - name: Verify packed consumer
+        shell: bash
+        run: |
+          pack_dir="$RUNNER_TEMP/prisma-embedding-sync-pack"
+          consumer_dir="$RUNNER_TEMP/prisma-embedding-sync-consumer"
+          mkdir -p "$pack_dir" "$consumer_dir"
+          npm pack --json --pack-destination "$pack_dir" > "$pack_dir/pack.json"
+          node - "$pack_dir/pack.json" <<'NODE'
+          const fs = require('node:fs');
+          const pack = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'))[0];
+          const files = pack.files.map(({ path }) => path);
+          const allowed = (path) =>
+            path.startsWith('dist/') ||
+            ['README.md', 'LICENSE', 'CHANGELOG.md', 'package.json'].includes(path);
+          const unexpected = files.filter((path) => !allowed(path));
+          if (unexpected.length > 0 || files.includes('TASK.md')) {
+            throw new Error(`Unexpected tarball files: ${unexpected.join(', ') || 'TASK.md'}`);
+          }
+          console.log(files.join('\n'));
+          NODE
+          tarball="$(find "$pack_dir" -maxdepth 1 -name '*.tgz' -print -quit)"
+          test -n "$tarball"
+          cd "$consumer_dir"
+          npm init -y
+          npm install "$tarball" @prisma/client@6.19.3 typescript@5.9.3
+          npm ls --depth=0
+          node --input-type=module -e "import * as pkg from 'prisma-embedding-sync'; if (typeof pkg.withEmbeddings !== 'function' || typeof pkg.MockProvider !== 'function') process.exit(1); console.log('esm-ok')"
+          node -e "const pkg = require('prisma-embedding-sync'); if (typeof pkg.withEmbeddings !== 'function' || typeof pkg.MockProvider !== 'function') process.exit(1); console.log('cjs-ok')"
+          cat > consumer.ts <<'TS'
+          import { PrismaClient } from '@prisma/client';
+          import { MockProvider, withEmbeddings, type EmbeddingProvider } from 'prisma-embedding-sync';
+
+          const provider: EmbeddingProvider = new MockProvider({ dimensions: 3 });
+          const client = withEmbeddings(new PrismaClient(), {
+            models: {
+              Product: {
+                sourceFields: ['name'],
+                targetField: 'embedding',
+                provider,
+                dimensions: 3,
+              },
+            },
+          });
+          void client;
+          TS
+          ./node_modules/.bin/tsc --noEmit --strict --skipLibCheck --module NodeNext --moduleResolution NodeNext --target ES2022 consumer.ts

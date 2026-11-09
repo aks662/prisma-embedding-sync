@@ -79,6 +79,12 @@ function validateModelConfig(modelName: string, value: unknown): asserts value i
       `Model "${modelName}": targetField and hashField must be distinct`,
     );
   }
+  const inputField = `${targetField}Input`;
+  if (hashField === inputField || sourceFields.includes(inputField)) {
+    throw new ConfigValidationError(
+      `Model "${modelName}": sourceFields and hashField must not include staging field "${inputField}"`,
+    );
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

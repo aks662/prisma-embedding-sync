@@ -8,6 +8,7 @@ export {
 export { MockProvider } from './providers/mock.js';
 export { OllamaProvider } from './providers/ollama.js';
 export { withEmbeddings } from './extension/index.js';
+export { hashSourceFields, sha256 } from './hash.js';
 export type {
   EmbedConfig,
   EmbeddingProvider,

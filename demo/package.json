@@ -1,0 +1,34 @@
+{
+  "name": "prisma-embedding-sync-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch scripts/dev.ts",
+    "start": "tsx scripts/dev.ts",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:smoke": "tsx scripts/api-smoke.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "express": "5.2.1",
+    "prisma-embedding-sync": "file:.."
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "24.19.2",
+    "prisma": "6.19.3",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "esbuild@0.27.7": true,
+    "esbuild@0.28.2": true,
+    "fsevents@2.3.3": true,
+    "prisma@6.19.3": true
+  }
+}

@@ -3,3 +3,5 @@ TASK.md
 node_modules/
 dist/
 coverage/
+tests/prisma/**/*.prisma
+tests/prisma/**/*.sql
