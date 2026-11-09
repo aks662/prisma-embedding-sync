@@ -7,6 +7,7 @@ export {
 } from './errors.js';
 export { MockProvider } from './providers/mock.js';
 export { OllamaProvider } from './providers/ollama.js';
+export { withEmbeddings } from './extension/index.js';
 export type {
   EmbedConfig,
   EmbeddingProvider,
