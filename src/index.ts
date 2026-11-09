@@ -6,6 +6,7 @@ export {
   UnsupportedOperationError,
 } from './errors.js';
 export { MockProvider } from './providers/mock.js';
+export { OllamaProvider } from './providers/ollama.js';
 export type {
   EmbedConfig,
   EmbeddingProvider,
