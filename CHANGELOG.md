@@ -2,7 +2,13 @@
 
 All notable changes to `prisma-embedding-sync` are recorded here.
 
-## [0.1.0] - Unreleased
+## [0.1.1] - 2026-11-10
+
+### Changed
+
+- Added npm repository, project homepage, and issue-tracker URL metadata; no API or runtime behavior changes.
+
+## [0.1.0] - 2026-11-10
 
 ### Added
 
