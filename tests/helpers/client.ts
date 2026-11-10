@@ -15,5 +15,5 @@ export function createTestClient() {
 
 /** Creates the configured extended client while preserving its inferred Prisma extension type. */
 export function createExtendedTestClient(client: PrismaClient, config: EmbedConfig) {
-  return withEmbeddings(client, config);
+  return client.$extends(withEmbeddings(config));
 }

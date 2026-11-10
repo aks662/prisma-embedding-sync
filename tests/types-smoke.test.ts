@@ -5,9 +5,11 @@ import {
   DimensionMismatchError,
   PrismaEmbeddingSyncError,
   UnsupportedOperationError,
+  withEmbeddings,
 } from '../src/index.js';
 import type {
   EmbedConfig,
+  EmbeddingExtension,
   EmbeddingProvider,
   MockProviderOptions,
   ModelEmbedConfig,
@@ -29,10 +31,12 @@ describe('public type and error contracts', () => {
       dimensions: 8,
     };
     const config: EmbedConfig = { models: { Product: model } };
+    const extension: EmbeddingExtension = withEmbeddings(config);
     const mockOptions: MockProviderOptions = { dimensions: 8 };
     const ollamaOptions: OllamaProviderOptions = { dimensions: 768 };
 
     expect(config.models.Product).toBe(model);
+    expect(extension.name).toBe('prisma-embedding-sync');
     expect(mockOptions.dimensions).toBe(8);
     expect(ollamaOptions.dimensions).toBe(768);
   });

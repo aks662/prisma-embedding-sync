@@ -69,5 +69,5 @@ dbIntegration('Prisma updateMany guard with PostgreSQL', () => {
 });
 
 function withEmbeddingsForTest(client: ReturnType<typeof createTestClient>) {
-  return withEmbeddings(client, { models: { Product: modelConfig } });
+  return client.$extends(withEmbeddings({ models: { Product: modelConfig } }));
 }

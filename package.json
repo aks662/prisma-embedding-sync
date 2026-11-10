@@ -29,7 +29,7 @@
     "CHANGELOG.md"
   ],
   "peerDependencies": {
-    "@prisma/client": "^6.19.3"
+    "@prisma/client": "^6.19.3 || ^7.10.1"
   },
   "scripts": {
     "prisma:generate": "DATABASE_URL=\"${DATABASE_URL:-postgresql://postgres:test@localhost:5432/prisma_embedding_sync_test?schema=public}\" prisma generate --schema tests/prisma/schema.prisma",
@@ -46,11 +46,11 @@
     "@types/node": "24.19.2",
     "@vitest/coverage-v8": "5.0.5",
     "eslint": "10.14.0",
-    "prisma": "6.19.3",
     "prettier": "3.9.10",
+    "prisma": "6.19.3",
     "tsup": "9.0.0",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.72.1",
+    "typescript-eslint": "8.72.2",
     "vite": "8.3.6",
     "vitest": "5.0.5"
   },
@@ -60,5 +60,8 @@
     "esbuild@0.28.2": true,
     "prisma@6.19.3": true,
     "fsevents@2.3.3": true
+  },
+  "overrides": {
+    "minimatch": "11.0.5"
   }
 }

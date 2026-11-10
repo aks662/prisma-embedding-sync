@@ -114,14 +114,16 @@
         edit.addEventListener('submit', async (event) => {
           event.preventDefault();
           const form = new FormData(edit);
+          const description = form.get('description');
+          const changes = { price: form.get('price') };
+          if (typeof description === 'string' && description !== product.description) {
+            changes.description = description;
+          }
           try {
             await request(`/products/${product.id}`, {
               method: 'PATCH',
               headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                description: form.get('description'),
-                price: form.get('price'),
-              }),
+              body: JSON.stringify(changes),
             });
             await refreshProducts();
           } catch (error) {
@@ -137,11 +139,18 @@
           (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char],
         );
       const refreshProducts = async () => {
-        products.replaceChildren(...(await request('/products')).map(productCard));
+        const items = (await request('/products')).map(productCard);
+        if (items.length === 0) {
+          const empty = document.createElement('p');
+          empty.textContent = 'No products yet. Create one above.';
+          items.push(empty);
+        }
+        products.replaceChildren(...items);
       };
       document.querySelector('#create-form').addEventListener('submit', async (event) => {
         event.preventDefault();
-        const form = new FormData(event.currentTarget);
+        const createForm = event.currentTarget;
+        const form = new FormData(createForm);
         try {
           const created = await request('/products', {
             method: 'POST',
@@ -149,7 +158,7 @@
             body: JSON.stringify(Object.fromEntries(form)),
           });
           document.querySelector('#create-result').textContent = `Created product ${created.id}`;
-          event.currentTarget.reset();
+          createForm.reset();
           await refreshProducts();
         } catch (error) {
           alert(error.message);
@@ -160,13 +169,17 @@
         const query = new FormData(event.currentTarget).get('q');
         try {
           const results = await request(`/search?q=${encodeURIComponent(query)}`);
-          searchResults.replaceChildren(
-            ...results.map((item) => {
-              const result = document.createElement('article');
-              result.textContent = `${item.name} · similarity ${item.similarity.toFixed(4)} · ${item.description}`;
-              return result;
-            }),
-          );
+          const items = results.map((item) => {
+            const result = document.createElement('article');
+            result.textContent = `${item.name} · similarity ${item.similarity.toFixed(4)} · ${item.description}`;
+            return result;
+          });
+          if (items.length === 0) {
+            const empty = document.createElement('p');
+            empty.textContent = 'No matching products found.';
+            items.push(empty);
+          }
+          searchResults.replaceChildren(...items);
         } catch (error) {
           alert(error.message);
         }

@@ -12,10 +12,11 @@ When text stored on a row changes but its embedding does not, semantic search us
 
 ## The solution
 
-`prisma-embedding-sync` extends a Prisma Client with embedding-aware `create`, `createMany`, `update`, and `upsert` hooks. Configure the source fields for each model and a provider. The extension normalizes and hashes those fields, skips unnecessary provider calls when the source is unchanged, and stages vectors for PostgreSQL to persist through a trigger.
+`prisma-embedding-sync` provides embedding-aware `create`, `createMany`, `update`, `upsert`, and guarded `updateMany` hooks for Prisma Client. Configure the source fields for each model and a provider. The extension normalizes and hashes those fields, skips unnecessary provider calls when the source is unchanged, and stages vectors for PostgreSQL to persist through a trigger.
 
 ```ts
-const prisma = withEmbeddings(new PrismaClient(), {
+const raw = new PrismaClient();
+const prisma = raw.$extends(withEmbeddings({
   models: {
     Product: {
       sourceFields: ['name', 'description'],
@@ -25,21 +26,30 @@ const prisma = withEmbeddings(new PrismaClient(), {
       dimensions: 768,
     },
   },
-});
+}));
 ```
 
 ## Quick start
 
-The package targets Prisma ORM 6.19.3 and Node.js 22.12+ or 24.x. Once version 0.1.0 is available from your configured npm registry, install the package and its matching Prisma Client and CLI:
+Prisma 6.19.3 and Prisma 7.10.1 have both been verified against PostgreSQL/pgvector under Node.js 24.22.2. The package declares peer support for `@prisma/client` `^6.19.3 || ^7.10.1` and Node.js `^22.12.0 || ^24.0.0`; CI is configured to exercise both Node lines. Match the Prisma CLI and client major versions. Prisma 7 direct PostgreSQL clients also need the PostgreSQL driver adapter:
 
 ```bash
 npm install prisma-embedding-sync@0.1.0 @prisma/client@6.19.3
 npm install --save-dev prisma@6.19.3
 ```
 
+For Prisma 7:
+
+```bash
+npm install prisma-embedding-sync@0.1.0 @prisma/client@7.10.1 @prisma/adapter-pg@7.10.1
+npm install --save-dev prisma@7.10.1
+```
+
+Version 0.1.0 is not published yet; these package install commands apply after an approved publication.
+
 ### 1. Define the Prisma model
 
-Use a nullable `Unsupported("vector(768)")` field for the vector and a writable string staging field. The package derives the staging field name from `targetField` plus `Input`.
+Use a nullable `Unsupported("vector(768)")` field for the vector and a writable string staging field. The package derives the staging field name from `targetField` plus `Input`. For Prisma 6.19, use its `prisma-client-js` generator and datasource URL:
 
 ```prisma
 generator client {
@@ -60,6 +70,46 @@ model Product {
   embeddingHash  String?
   embeddingInput String?
 }
+```
+
+For Prisma 7, use the new generator with an explicit output path and keep the datasource URL in `prisma.config.ts`:
+
+```prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Product {
+  id             Int      @id @default(autoincrement())
+  name           String
+  description    String
+  price          Decimal  @db.Decimal(10, 2)
+  embedding      Unsupported("vector(768)")?
+  embeddingHash  String?
+  embeddingInput String?
+}
+```
+
+```ts
+// prisma.config.ts
+import { existsSync } from 'node:fs';
+import process from 'node:process';
+import { defineConfig } from 'prisma/config';
+
+if (existsSync('.env')) process.loadEnvFile('.env');
+const databaseUrl = process.env.DATABASE_URL;
+if (databaseUrl === undefined) throw new Error('DATABASE_URL is required');
+
+export default defineConfig({
+  schema: 'prisma/schema.prisma',
+  migrations: { path: 'prisma/migrations' },
+  datasource: { url: databaseUrl },
+});
 ```
 
 ### 2. Add pgvector and the trigger migration
@@ -103,11 +153,17 @@ FOR EACH ROW EXECUTE FUNCTION product_embedding_input();
 
 Use the vector dimension and table/column mappings from your own schema. The trigger must write the vector and clear the staging field in the same row mutation.
 
-After editing the migration, apply it and generate the client:
+After editing the migration, apply it and generate the client. Prisma 6 uses the schema URL; Prisma 7 reads the URL through `prisma.config.ts`:
 
 ```bash
 npx prisma migrate dev
 npx prisma generate
+```
+
+```bash
+# Prisma 7
+npx prisma migrate dev --config prisma.config.ts
+npx prisma generate --config prisma.config.ts
 ```
 
 ### 3. Create the extended client
@@ -116,7 +172,8 @@ npx prisma generate
 import { PrismaClient } from '@prisma/client';
 import { OllamaProvider, withEmbeddings } from 'prisma-embedding-sync';
 
-const prisma = withEmbeddings(new PrismaClient(), {
+const raw = new PrismaClient();
+const prisma = raw.$extends(withEmbeddings({
   models: {
     Product: {
       sourceFields: ['name', 'description'],
@@ -126,8 +183,38 @@ const prisma = withEmbeddings(new PrismaClient(), {
       dimensions: 768,
     },
   },
-});
+}));
 ```
+
+For Prisma 7, import the client from the configured generated output and initialize it with the PostgreSQL adapter:
+
+```ts
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from './generated/prisma/client.js';
+import { OllamaProvider, withEmbeddings } from 'prisma-embedding-sync';
+
+const databaseUrl = process.env.DATABASE_URL;
+if (databaseUrl === undefined) throw new Error('DATABASE_URL is required');
+
+const raw = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: databaseUrl }),
+});
+const prisma = raw.$extends(
+  withEmbeddings({
+    models: {
+      Product: {
+        sourceFields: ['name', 'description'],
+        targetField: 'embedding',
+        hashField: 'embeddingHash',
+        provider: new OllamaProvider(),
+        dimensions: 768,
+      },
+    },
+  }),
+);
+```
+
+`withEmbeddings(config)` returns a version-neutral query-extension definition. Applying it through the consuming client’s `$extends` method keeps the model and delegate types from that client’s generated Prisma schema.
 
 ### 4. Write with Prisma as usual
 
@@ -180,17 +267,19 @@ OpenAI, Gemini, and other hosted embedding providers are not implemented in vers
 
 ## API reference
 
-The package entry point exports the following runtime symbols and types. `withEmbeddings` returns the Prisma `$extends` result inferred from the input client's generated type; its declaration is generic over `T extends PrismaClient`.
+The package entry point exports the following runtime symbols and types. `withEmbeddings` returns a version-neutral `EmbeddingExtension`; call the consuming Prisma client’s `$extends` method to obtain the extended client with its generated model and delegate types.
 
 | Export | Declaration / signature |
 |---|---|
-| `withEmbeddings` | `withEmbeddings<T extends PrismaClient>(client: T, config: EmbedConfig)` |
+| `withEmbeddings` | `withEmbeddings(config: EmbedConfig): EmbeddingExtension` |
 | `sha256` | `sha256(input: string): string` |
 | `hashSourceFields` | `hashSourceFields(data: Record<string, unknown>, sourceFields: string[]): string` |
 | `MockProvider` | `new MockProvider(options?: MockProviderOptions)`; implements `EmbeddingProvider` |
 | `OllamaProvider` | `new OllamaProvider(options?: OllamaProviderOptions)`; implements `EmbeddingProvider` |
 | `EmbeddingProvider` | `{ embed(texts: string[]): Promise<number[][]>; readonly dimensions: number; readonly modelName: string }` |
 | `EmbedConfig` | `{ models: Record<string, ModelEmbedConfig>; logger?: (message: string, meta?: Record<string, unknown>) => void }` |
+| `EmbeddingExtension` | The exact hook interface below; consumed by the generated client’s `$extends` method |
+| `EmbeddingQueryContext<TArgs, TResult>` | `{ model?: string; args: TArgs; query: (args: TArgs) => PromiseLike<TResult> }` |
 | `ModelEmbedConfig` | `{ sourceFields: string[]; targetField: string; hashField?: string; provider: EmbeddingProvider; dimensions: number }` |
 | `OllamaProviderOptions` | `{ baseUrl?: string; model?: string; timeoutMs?: number; dimensions?: number }` |
 | `MockProviderOptions` | `{ dimensions?: number }` |
@@ -198,6 +287,39 @@ The package entry point exports the following runtime symbols and types. `withEm
 | `ConfigValidationError` | `new ConfigValidationError(message: string)` |
 | `DimensionMismatchError` | `new DimensionMismatchError(message: string)` |
 | `UnsupportedOperationError` | `new UnsupportedOperationError(message: string)` |
+
+The Prisma-version-neutral extension contract is:
+
+```ts
+interface EmbeddingQueryContext<TArgs, TResult> {
+  model?: string;
+  args: TArgs;
+  query: (args: TArgs) => PromiseLike<TResult>;
+}
+
+interface EmbeddingExtension {
+  readonly name: 'prisma-embedding-sync';
+  readonly query: {
+    readonly $allModels: {
+      create<TArgs extends { data: unknown }, TResult>(
+        context: EmbeddingQueryContext<TArgs, TResult>,
+      ): Promise<TResult>;
+      update<TArgs extends { where: unknown; data: unknown }, TResult>(
+        context: EmbeddingQueryContext<TArgs, TResult>,
+      ): Promise<TResult>;
+      createMany<TArgs extends { data: unknown }, TResult>(
+        context: EmbeddingQueryContext<TArgs, TResult>,
+      ): Promise<TResult>;
+      upsert<TArgs extends { where: unknown; create: unknown; update: unknown }, TResult>(
+        context: EmbeddingQueryContext<TArgs, TResult>,
+      ): Promise<TResult>;
+      updateMany<TArgs, TResult>(
+        context: EmbeddingQueryContext<TArgs, TResult>,
+      ): Promise<never>;
+    };
+  };
+}
+```
 
 `create`, `createMany`, `update`, and `upsert` are Prisma Client operations intercepted by the extension, not separate package exports. No search API is exported; applications issue parameterized SQL through Prisma for pgvector search.
 
@@ -210,9 +332,10 @@ The package entry point exports the following runtime symbols and types. `withEm
 - **Retries:** No provider retries, rate limiter, or circuit breaker.
 - **Write shapes:** Managed vector/hash/staging fields, nested writes, JSON/array update values, and unsupported Prisma update operators are rejected for configured writes. Source updates require complete source fields and the current hash in `where`.
 - **Transactions:** Provider calls happen outside database transactions. The vector, hash, staging value, and row fields are persisted through the same mutation and trigger. Transaction behavior is bounded by the tested Prisma operations and PostgreSQL/pgvector versions; do not infer broader guarantees.
-- **Prisma:** Prisma CLI and `@prisma/client` 6.19.3 are the tested target for this v0.1 package.
+- **Prisma:** Prisma CLI and `@prisma/client` 6.19.3 and 7.10.1 are verified targets (local PostgreSQL/pgvector matrix on Node 24.22.2). The peer range is `^6.19.3 || ^7.10.1`; other versions are not yet verified. Prisma 7 requires its generated `prisma-client` output path, a datasource URL in `prisma.config.ts`, and a PostgreSQL driver adapter for direct connections. The package itself does not create the Prisma client or require an adapter dependency.
+- **Prisma 6 CLI security note (checked 10 November 2026):** Prisma CLI 6.19.3 resolves `@prisma/config@6.19.3` and `deepmerge-ts@7.1.5`, which are affected by [GHSA-ggr8-5vv4-36mx](https://github.com/advisories/GHSA-ggr8-5vv4-36mx) when merging cyclic object graphs. Prisma 6.19.3 is the latest 6.x version checked; its config dependency pins the 7.x merge package, while the advisory fix is 8.0.0. This affects Prisma CLI configuration handling, not this package's runtime (the published package has no runtime dependencies). Avoid passing untrusted recursive object graphs to Prisma 6 CLI config merging. Prisma 7.10.1 did not report this high-severity advisory in the checked consumer audit.
 - **Node.js:** `^22.12.0 || ^24.0.0`, as declared in `package.json`. Node 26 is outside this package's declared range.
-- **Prisma 6 lifecycle:** Prisma 6 security maintenance is scheduled to end on 19 November 2026. A support decision is needed before relying on this target after that date.
+- **Prisma 6 lifecycle:** Prisma 6 receives security patches until 19 November 2026. Support after that date requires a security-maintenance review; compatibility tests alone do not extend Prisma's maintenance window.
 
 ## Roadmap
 
@@ -238,6 +361,8 @@ npm run db:migrate
 ollama pull nomic-embed-text
 npm run dev
 ```
+
+The demo uses Prisma 7. Its generated client is written to `demo/generated/prisma`, its database URL is read through `demo/prisma.config.ts`, and it connects through `@prisma/adapter-pg`. The extension is applied as `client.$extends(withEmbeddings(config))` so Prisma’s generated model types are retained.
 
 Open [http://localhost:3001](http://localhost:3001). The demo database is isolated on host port `5433`; it does not use the package integration-test database on port `5432`. The default server uses Ollama. The demo API smoke script injects `MockProvider` and does not require Ollama:
 

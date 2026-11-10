@@ -1,7 +1,6 @@
 /** @file Tests all required configuration errors and construction of the pass-through extension. */
 import { describe, expect, it, vi } from 'vitest';
 import { ConfigValidationError, withEmbeddings } from '../src/index.js';
-import type { PrismaClient } from '@prisma/client';
 import { validateConfig } from '../src/config.js';
 import type { EmbedConfig } from '../src/types.js';
 
@@ -103,20 +102,11 @@ describe('extension configuration validation', () => {
     );
   });
 
-  it('accepts a valid config and returns the inferred pass-through Prisma extension', async () => {
+  it('accepts a valid config and returns a version-neutral Prisma extension', async () => {
     validateConfig(validConfig());
-    const capture: { hooks?: Record<string, unknown> } = {};
-    const fakeClient = {
-      $extends(extension: { query: { $allModels: Record<string, unknown> } }) {
-        capture.hooks = extension.query.$allModels;
-        return { extended: true };
-      },
-      $transaction: async () => null,
-    } as unknown as PrismaClient;
-    const extended = withEmbeddings(fakeClient, validConfig());
+    const extension = withEmbeddings(validConfig());
 
-    expect(extended).toEqual({ extended: true });
-    expect(Object.keys(capture.hooks ?? {}).sort()).toEqual([
+    expect(Object.keys(extension.query.$allModels).sort()).toEqual([
       'create',
       'createMany',
       'update',
@@ -124,19 +114,16 @@ describe('extension configuration validation', () => {
       'upsert',
     ]);
 
-    type HookArgs = {
-      args: Record<string, unknown>;
-      query: (args: Record<string, unknown>) => Promise<unknown>;
-    };
-    const createHook = capture.hooks?.create as (args: HookArgs) => Promise<unknown>;
     const data = { data: { name: 'Keyboard' } };
     const result = { id: 1, name: 'Keyboard' };
-    const query = vi.fn(async (args: Record<string, unknown>) => {
+    const query = vi.fn(async (args: typeof data) => {
       expect(args).toBe(data);
       return result;
     });
 
-    await expect(createHook({ args: data, query })).resolves.toBe(result);
+    await expect(
+      extension.query.$allModels.create({ model: 'Unconfigured', args: data, query }),
+    ).resolves.toBe(result);
     expect(query).toHaveBeenCalledOnce();
   });
 });

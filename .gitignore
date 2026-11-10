@@ -1,6 +1,8 @@
 node_modules/
 dist/
 coverage/
+compat/prisma7/generated/
+demo/generated/
 TASK.md
 .npmrc
 .vercel/

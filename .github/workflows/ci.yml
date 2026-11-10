@@ -75,7 +75,8 @@ jobs:
           import { MockProvider, withEmbeddings, type EmbeddingProvider } from 'prisma-embedding-sync';
 
           const provider: EmbeddingProvider = new MockProvider({ dimensions: 3 });
-          const client = withEmbeddings(new PrismaClient(), {
+          const raw = new PrismaClient();
+          const client = raw.$extends(withEmbeddings({
             models: {
               Product: {
                 sourceFields: ['name'],
@@ -84,7 +85,51 @@ jobs:
                 dimensions: 3,
               },
             },
-          });
+          }));
           void client;
           TS
           ./node_modules/.bin/tsc --noEmit --strict --skipLibCheck --module NodeNext --moduleResolution NodeNext --target ES2022 consumer.ts
+
+  prisma7-compatibility:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5434/prisma_embedding_sync_test_v7?schema=public
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: prisma_embedding_sync_test_v7
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d prisma_embedding_sync_test_v7"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    strategy:
+      matrix:
+        node-version: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install Prisma 7 compatibility fixture
+        working-directory: compat/prisma7
+        run: npm ci
+      - name: Generate Prisma 7 client and apply pgvector migrations
+        working-directory: compat/prisma7
+        run: |
+          npx prisma generate --config prisma.config.ts
+          npx prisma migrate deploy --config prisma.config.ts
+      - name: Strictly typecheck generated Prisma 7 consumer
+        working-directory: compat/prisma7
+        run: npx tsc --noEmit --strict --skipLibCheck --module NodeNext --moduleResolution NodeNext --target ES2022 --types node consumer.ts integration.ts
+      - name: Run Prisma 7 PostgreSQL and pgvector integration
+        working-directory: compat/prisma7
+        run: npx tsx integration.ts

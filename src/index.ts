@@ -11,7 +11,9 @@ export { withEmbeddings } from './extension/index.js';
 export { hashSourceFields, sha256 } from './hash.js';
 export type {
   EmbedConfig,
+  EmbeddingExtension,
   EmbeddingProvider,
+  EmbeddingQueryContext,
   MockProviderOptions,
   ModelEmbedConfig,
   OllamaProviderOptions,

@@ -1,0 +1,19 @@
+// Prisma 7 compatibility schema; SQL migrations are shared with the Prisma 6 integration suite.
+generator client {
+  provider = "prisma-client"
+  output   = "./generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Product {
+  id             Int                       @id @default(autoincrement())
+  name           String
+  description    String
+  price          Decimal                   @db.Decimal(10, 2)
+  embedding      Unsupported("vector(3)")?
+  embeddingHash  String?
+  embeddingInput String?
+}

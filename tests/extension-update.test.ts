@@ -310,17 +310,19 @@ function createExtendedClient(
   client: ReturnType<typeof createTestClient>,
   embeddingProvider: ModelEmbedConfig['provider'],
 ) {
-  return withEmbeddings(client, {
-    models: {
-      Product: {
-        sourceFields,
-        targetField: 'embedding',
-        hashField: 'embeddingHash',
-        provider: embeddingProvider,
-        dimensions: 3,
+  return client.$extends(
+    withEmbeddings({
+      models: {
+        Product: {
+          sourceFields,
+          targetField: 'embedding',
+          hashField: 'embeddingHash',
+          provider: embeddingProvider,
+          dimensions: 3,
+        },
       },
-    },
-  });
+    }),
+  );
 }
 
 async function createProduct(

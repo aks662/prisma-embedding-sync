@@ -227,6 +227,57 @@ dbIntegration('Prisma create hook with pgvector trigger', () => {
     expect(await client.product.count()).toBe(0);
   });
 
+  it('does not persist a row when the provider fails inside an interactive transaction', async () => {
+    provider.failNextWith = new Error('transaction provider failure');
+
+    await expect(
+      extended.$transaction(async (tx) =>
+        tx.product.create({
+          data: {
+            name: 'transaction provider failure',
+            description: 'no row or vector',
+            price: '5.00',
+          },
+        }),
+      ),
+    ).rejects.toThrow('transaction provider failure');
+
+    expect(provider.embedCallCount).toBe(1);
+    expect(await client.product.count()).toBe(0);
+    expect(
+      await client.product.findMany({ where: { name: 'transaction provider failure' } }),
+    ).toHaveLength(0);
+  });
+
+  it('does not persist a row when dimensions are invalid inside an interactive transaction', async () => {
+    const malformedProvider = {
+      dimensions: 3,
+      modelName: 'transaction-dimension-mismatch',
+      embed: vi.fn(async (): Promise<number[][]> => [[0.1, 0.2]]),
+    };
+    const malformedClient = createExtendedClient(client, malformedProvider);
+
+    await expect(
+      malformedClient.$transaction(async (tx) =>
+        tx.product.create({
+          data: {
+            name: 'transaction dimension mismatch',
+            description: 'no row or vector',
+            price: '5.00',
+          },
+        }),
+      ),
+    ).rejects.toBeInstanceOf(DimensionMismatchError);
+
+    expect(malformedProvider.embed).toHaveBeenCalledExactlyOnceWith([
+      'transaction dimension mismatch no row or vector',
+    ]);
+    expect(await client.product.count()).toBe(0);
+    expect(
+      await client.product.findMany({ where: { name: 'transaction dimension mismatch' } }),
+    ).toHaveLength(0);
+  });
+
   it('rolls back the trigger-written vector, hash, and normal fields in an interactive transaction', async () => {
     await expect(
       extended.$transaction(async (tx) => {
@@ -262,7 +313,9 @@ function createExtendedClient(
   client: ReturnType<typeof createTestClient>,
   embeddingProvider: ModelEmbedConfig['provider'],
 ) {
-  return withEmbeddings(client, {
-    models: { Product: { ...modelConfig, provider: embeddingProvider } },
-  });
+  return client.$extends(
+    withEmbeddings({
+      models: { Product: { ...modelConfig, provider: embeddingProvider } },
+    }),
+  );
 }

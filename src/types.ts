@@ -42,3 +42,37 @@ export interface EmbedConfig {
   /** Optional structured logger; omitted calls are intentionally silent. */
   logger?: (message: string, meta?: Record<string, unknown>) => void;
 }
+
+/** Query arguments supplied to a generic Prisma model extension hook. */
+export interface EmbeddingQueryContext<TArgs, TResult> {
+  /** Prisma schema model name, when the hook is model-specific. */
+  model?: string;
+  /** Original Prisma operation arguments. */
+  args: TArgs;
+  /** Runs the underlying operation with the supplied arguments. */
+  query: (args: TArgs) => PromiseLike<TResult>;
+}
+
+/** Version-neutral query extension consumed by the caller's generated Prisma Client. */
+export interface EmbeddingExtension {
+  /** Stable extension name visible in Prisma extension diagnostics. */
+  readonly name: 'prisma-embedding-sync';
+  /** Hooks for supported operations on every Prisma model. */
+  readonly query: {
+    readonly $allModels: {
+      create<TArgs extends { data: unknown }, TResult>(
+        context: EmbeddingQueryContext<TArgs, TResult>,
+      ): Promise<TResult>;
+      update<TArgs extends { where: unknown; data: unknown }, TResult>(
+        context: EmbeddingQueryContext<TArgs, TResult>,
+      ): Promise<TResult>;
+      createMany<TArgs extends { data: unknown }, TResult>(
+        context: EmbeddingQueryContext<TArgs, TResult>,
+      ): Promise<TResult>;
+      upsert<TArgs extends { where: unknown; create: unknown; update: unknown }, TResult>(
+        context: EmbeddingQueryContext<TArgs, TResult>,
+      ): Promise<TResult>;
+      updateMany<TArgs, TResult>(context: EmbeddingQueryContext<TArgs, TResult>): Promise<never>;
+    };
+  };
+}

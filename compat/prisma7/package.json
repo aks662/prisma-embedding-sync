@@ -1,0 +1,19 @@
+{
+  "name": "prisma-embedding-sync-prisma7-compat",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "prisma": "7.10.1",
+    "prisma-embedding-sync": "file:../..",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  },
+  "allowScripts": {
+    "prisma": true,
+    "@prisma/engines": true,
+    "esbuild": true,
+    "@prisma/client": true
+  }
+}
