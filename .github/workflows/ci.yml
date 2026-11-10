@@ -93,7 +93,7 @@ jobs:
   prisma7-compatibility:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://postgres:test@localhost:5434/prisma_embedding_sync_test_v7?schema=public
+      DATABASE_URL: postgresql://postgres:test@127.0.0.1:5434/prisma_embedding_sync_test_v7?schema=public
     services:
       postgres:
         image: pgvector/pgvector:0.8.7-pg16
