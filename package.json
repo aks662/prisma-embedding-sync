@@ -62,6 +62,7 @@
     "fsevents@2.3.3": true
   },
   "overrides": {
-    "minimatch": "11.0.5"
+    "minimatch": "11.0.5",
+    "deepmerge-ts": "8.0.2"
   }
 }

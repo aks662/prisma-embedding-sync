@@ -34,6 +34,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
+      - run: npm audit
       - run: npx prisma migrate deploy --schema tests/prisma/schema.prisma
       - run: npm run typecheck
       - run: npm run lint
@@ -122,6 +123,9 @@ jobs:
       - name: Install Prisma 7 compatibility fixture
         working-directory: compat/prisma7
         run: npm ci
+      - name: Audit Prisma 7 compatibility dependencies
+        working-directory: compat/prisma7
+        run: npm audit
       - name: Generate Prisma 7 client and apply pgvector migrations
         working-directory: compat/prisma7
         run: |

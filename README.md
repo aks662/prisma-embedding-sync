@@ -333,7 +333,19 @@ interface EmbeddingExtension {
 - **Write shapes:** Managed vector/hash/staging fields, nested writes, JSON/array update values, and unsupported Prisma update operators are rejected for configured writes. Source updates require complete source fields and the current hash in `where`.
 - **Transactions:** Provider calls happen outside database transactions. The vector, hash, staging value, and row fields are persisted through the same mutation and trigger. Transaction behavior is bounded by the tested Prisma operations and PostgreSQL/pgvector versions; do not infer broader guarantees.
 - **Prisma:** Prisma CLI and `@prisma/client` 6.19.3 and 7.10.1 are verified targets (local PostgreSQL/pgvector matrix on Node 24.22.2). The peer range is `^6.19.3 || ^7.10.1`; other versions are not yet verified. Prisma 7 requires its generated `prisma-client` output path, a datasource URL in `prisma.config.ts`, and a PostgreSQL driver adapter for direct connections. The package itself does not create the Prisma client or require an adapter dependency.
-- **Prisma 6 CLI security note (checked 10 November 2026):** Prisma CLI 6.19.3 resolves `@prisma/config@6.19.3` and `deepmerge-ts@7.1.5`, which are affected by [GHSA-ggr8-5vv4-36mx](https://github.com/advisories/GHSA-ggr8-5vv4-36mx) when merging cyclic object graphs. Prisma 6.19.3 is the latest 6.x version checked; its config dependency pins the 7.x merge package, while the advisory fix is 8.0.0. This affects Prisma CLI configuration handling, not this package's runtime (the published package has no runtime dependencies). Avoid passing untrusted recursive object graphs to Prisma 6 CLI config merging. Prisma 7.10.1 did not report this high-severity advisory in the checked consumer audit.
+- **Prisma 6 CLI security note (checked 10 November 2026):** Prisma CLI 6.19.3 resolves `@prisma/config@6.19.3`, which pins vulnerable `deepmerge-ts@7.1.5`. The upstream advisory [GHSA-ggr8-5vv4-36mx](https://github.com/advisories/GHSA-ggr8-5vv4-36mx) affects versions before 8.0.0 when merging two matching recursive object graphs. Prisma's config loader passes the plain `deepmerge` function to c12 for merging the developer-authored Prisma config. Prisma's merged Prisma 7 dependency update uses `deepmerge-ts@8.0.2` at that call site; the Prisma 6 line still pins 7.1.5. This package's development dependency tree pins `deepmerge-ts@8.0.2` with npm `overrides`; Prisma 6.19.3 generation, config validation, migration deployment, and PostgreSQL integration tests pass with that resolution under Node 22 and 24. The published library has no runtime dependencies and does not include Prisma CLI or `deepmerge-ts`.
+
+  Applications that separately install Prisma CLI 6.19.3 can apply the same tested npm override in their **application's root** `package.json`:
+
+  ```json
+  {
+    "overrides": {
+      "deepmerge-ts": "8.0.2"
+    }
+  }
+  ```
+
+  This intentionally replaces Prisma's exact transitive 7.1.5 pin and should be retained only while the application's Prisma 6 config, generation, and migration commands pass. An override in this library's package manifest does not change a consumer application's dependency tree. The advisory requires a recursive object graph; Prisma's config file is executable developer-authored code, so do not load untrusted Prisma config files. Prisma 7.10.1's verified dependency tree already uses the patched major and reports no finding for this advisory.
 - **Node.js:** `^22.12.0 || ^24.0.0`, as declared in `package.json`. Node 26 is outside this package's declared range.
 - **Prisma 6 lifecycle:** Prisma 6 receives security patches until 19 November 2026. Support after that date requires a security-maintenance review; compatibility tests alone do not extend Prisma's maintenance window.
 
